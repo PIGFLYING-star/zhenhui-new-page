@@ -66,7 +66,8 @@
   @media (prefers-reduced-motion: reduce){*{animation-duration:.001s!important;transition-duration:.001s!important}}
 
   /* ---------- home: map + time bar ---------- */
-  #homeMap{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab}
+  #homeMap{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;touch-action:none}
+  #map{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;touch-action:none}
   #homeMap.dragging{cursor:grabbing}
   .homestrip{position:absolute;left:14px;top:14px;display:flex;gap:8px;flex-wrap:wrap;max-width:calc(100% - 90px)}
   .legend{background:var(--panel);border:1px solid var(--line2);border-radius:12px;padding:9px 12px;
@@ -1718,7 +1719,7 @@ $("homeFit").addEventListener("click", function(){ state.homeUserMoved=false; fi
 
 /* ---------- pan / zoom ---------- */
 function attachPan(el, m){
-  let down=false, lx=0, ly=0, moved=0;
+  let down=false, lx=0, ly=0, moved=0, pinch=0;
   el.addEventListener("mousedown", function(e){ down=true; lx=e.clientX; ly=e.clientY; moved=0; el.classList.add("dragging"); });
   window.addEventListener("mouseup", function(){ down=false; el.classList.remove("dragging"); });
   window.addEventListener("mousemove", function(e){
@@ -1734,12 +1735,31 @@ function attachPan(el, m){
     if(m===homeMap) m.zoomBy(e.deltaY<0?1.12:1/1.12, e.clientX-el.getBoundingClientRect().left, e.clientY-el.getBoundingClientRect().top);
     else m.zoomBy(e.deltaY<0?1.12:1/1.12);   // stays in FOLLOW: zooming is not leaving
     if(m===homeMap){ state.homeUserMoved=true; markHome(); } }, {passive:false});
-  el.addEventListener("touchstart", function(e){ if(e.touches[0]){ lx=e.touches[0].clientX; ly=e.touches[0].clientY; } });
+  /* touch: pan + pinch zoom. 注意 home 地图拖动后必须 markHome() 触发重绘 */
+  el.addEventListener("touchstart", function(e){
+    const t0=e.touches[0];
+    if(t0){ lx=t0.clientX; ly=t0.clientY; moved=0; }
+    pinch = e.touches.length===2 ? Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY) : 0;
+  });
   el.addEventListener("touchmove", function(e){
+    if(e.touches.length===2){
+      const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
+      if(pinch>0 && d>0) m.zoomBy(d/pinch);
+      pinch=d;
+      if(m===homeMap){ state.homeUserMoved=true; markHome(); }
+      return;
+    }
     const t=e.touches[0]; if(!t) return;
-    m.pan(t.clientX-lx, t.clientY-ly); lx=t.clientX; ly=t.clientY;
-    if(m===homeMap) state.homeUserMoved=true;
-  }, {passive:true});
+    const dx=t.clientX-lx, dy=t.clientY-ly;
+    moved+=Math.abs(dx)+Math.abs(dy);
+    if(moved<6) return;                  // tap or jitter must not move the map
+    m.pan(dx,dy);
+    lx=t.clientX; ly=t.clientY;
+    if(m===homeMap){ state.homeUserMoved=true; markHome(); }
+  });
+  el.addEventListener("touchend", function(){ pinch=0; });
+  /* 拖动结束后抑制随之而来的合成 click（防止拖地图误选机场） */
+  el.addEventListener("click", function(e){ if(moved>=6){ e.stopPropagation(); e.preventDefault(); moved=0; } }, true);
 }
 attachPan(homeMapEl, homeMap);
 attachPan(flightMapEl, flightMap);
@@ -1981,4 +2001,3 @@ window.TOOL = {
 </script>
 </body>
 </html>
-<!-- （注：内容由AI生成） -->
