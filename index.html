@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>SKYFOCUS — 臻辉航班</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23101A24'/%3E%3Cpath d='M14 42 L50 12 L38 52 L28 38 L14 42 Z' fill='%23E8C77A'/%3E%3C/svg%3E">
 <style>
   :root{
     --bg:#050a14; --deep:#070e1c; --panel:rgba(13,21,35,.88); --line:#1e2b45; --line2:#2b3c5c;
@@ -17,6 +18,7 @@
     --top-h:54px; --bar-h:118px;
   }
   *{box-sizing:border-box}
+  *{-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
   html,body{margin:0;height:100%}
   body{
     background:radial-gradient(1200px 800px at 12% -15%, #16233c 0%, transparent 60%),
@@ -46,7 +48,10 @@
     transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease),transform .3s var(--ease-pop),box-shadow .3s var(--ease-out)}
   button:hover{background:#1c2c48;border-color:#3a4d70;transform:translateY(-1px)}
   button:active{transform:scale(.88) translateY(1px);transition-duration:.08s}
-  button:focus-visible,.chip:focus-visible,.chipbtn:focus-visible,input:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+  /* 点击/聚焦一律不出现浏览器默认高亮（键盘可达性由 :focus-visible 提供） */
+  button:focus,input:focus,select:focus,textarea:focus,.chip:focus,.chipbtn:focus,.nameinput:focus{outline:none}
+  button::-moz-focus-inner{border:0}
+  .pass .main,.pass .stub{min-width:0}
   button.primary{background:linear-gradient(140deg,var(--amber),#ff9a3c);color:#22160a;border-color:#ffc27a;font-weight:700}
   button.primary:hover{background:linear-gradient(140deg,#ffc163,#ffa552)}
   button.ghost{background:transparent}
@@ -308,6 +313,70 @@
     header.top .chip{font-size:9.5px;padding:4px 6px}
     #fromChip{max-width:150px}
   }
+  @media (max-width:560px){
+    /* ===== 登机牌：紧凑、防溢出、去冗余 ===== */
+    .passstage{gap:9px;padding:10px 12px 14px}
+    .pass .main{padding:13px 15px}
+    .pass .stub{padding:10px 12px}
+    .pass .route{margin:10px 0 2px;gap:8px}
+    .pass .route .code{font-size:clamp(24px,7vw,34px)}
+    .pass .route .arrow small{font-size:8px;margin-top:4px}
+    .pass .route .arrow::before{top:5px}
+    .pass .cityline{font-size:9.5px}
+    .pass .fields{gap:7px 10px;margin-top:10px}
+    .pass .fields .f{padding-top:5px}
+    .pass .fields .f .v{font-size:11.5px}
+    .pass .fields .f .v.big{font-size:15px}
+    .pass .barcode{height:34px;margin-top:9px}
+    .pass .stub .kval{font-size:11px;margin-bottom:6px}
+    .pass .stub .code-big{font-size:24px}
+    .pass .lapse{display:none}                 /* 与字段重复的说明行 */
+    .pass .vseats{display:none}                /* 竖向装饰文字 */
+    .pass .stub .hide-m{display:none}          /* 冗余：行李/专注分钟/时间压缩 */
+    .passstage .row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;justify-content:stretch}
+    .passstage .row button{width:100%;padding:9px 6px}
+    .passstage .row #beginBtn{grid-column:1/-1}
+    #passNote{display:none}                    /* 底部彩蛋提示 */
+    .subjectbox{padding:11px 13px}
+    .subjectbox .sub{display:none}             /* 说明文字冗余 */
+    .subjectinput{min-width:0;padding:8px 10px}
+    .chipbtn{padding:5px 8px;font-size:10px}
+
+    /* ===== 落地页：紧凑，日志限高内部滚动 ===== */
+    .pad{padding:6px 12px}
+    .landedgrid{gap:10px}
+    .landedgrid .panel{padding:11px 13px}
+    .turnaround{padding:9px 11px;gap:8px}
+    .turnaround .t{font-size:20px}
+    .logpass{padding:7px 9px;gap:8px}
+    .loglist{max-height:138px;overflow:auto}
+    #screen-landed .panel h2{margin-bottom:2px}
+    #screen-landed .panel .sub{margin-bottom:8px;font-size:11px}
+    #breakSub{display:none}                    /* 冗余副标题 */
+
+    /* ===== 抽屉：紧凑 ===== */
+    .drawer{width:min(460px,96vw)}
+    .drawer .dbody{padding:10px 12px}
+    .drawer .panel{padding:10px 12px}
+    .drawer .panel .sub{font-size:11px;line-height:1.55}
+  }
+  @media (max-width:390px){
+    /* 登机牌：进一步紧凑（需在 560 块之后定义以覆盖） */
+    .pass .main{padding:10px 12px}
+    .pass .route{margin:5px 0 0;gap:6px}
+    .pass .route .code{font-size:clamp(22px,7vw,30px)}
+    .pass .fields{gap:5px 8px;margin-top:7px}
+    .pass .fields .f .v{font-size:11px}
+    .pass .barcode{height:26px;margin-top:6px}
+    .pass .stub{padding:8px 10px}
+    .pass .stub .kval{margin-bottom:4px}
+    .passstage{padding:8px 10px 10px}
+    .subjectbox{padding:9px 11px}
+    .chipbtn{padding:4px 7px;font-size:9.5px}
+    /* 小屏落地页：隐藏日志面板（抽屉「飞行日志」中可查看），保证一屏 */
+    #screen-landed .panel:last-child{display:none}
+    #screen-landed .pad{padding:6px 10px}
+  }
 </style>
 </head>
 <body>
@@ -479,26 +548,26 @@
   </div>
   <div class="dbody">
     <div class="tabpane on" id="pane-info">
-      <p class="note" style="margin-top:0">一个航班形态的番茄钟：先选专注时长，再选一架飞机在这个时间内能到达的地方，任务就会以真实地图上的航班形式进行。</p>
+      <p class="note" style="margin-top:0">一个航班形态的番茄钟：选专注时长，再选一架飞机这个时间内能到达的地方，任务就以真实地图上的航班进行。</p>
       <div class="panel" style="margin-top:10px">
         <h2>乘客与任务类型</h2>
-        <p class="sub">在登机牌页面「任务类型」处设置一次姓名。任务类型会显示在登机牌、飞行日志和机长播报中。</p>
+        <p class="sub">在登机牌「任务类型」处设置姓名与任务，会显示在登机牌、日志和机长播报中。</p>
       </div>
       <div class="panel" style="margin-top:10px">
         <h2>飞行</h2>
-        <p class="sub">白色飞机在世界地图上沿真实大圆航线飞行。高度、地速、剩余里程和预计到达时间都由任务进度推算。只有空中飞行时计时器才会走。</p>
+        <p class="sub">白色飞机沿真实大圆航线飞行。高度、地速、剩余里程、预计到达都由任务进度推算，只有飞行时计时器才走。</p>
       </div>
       <div class="panel" style="margin-top:10px">
         <h2>操作</h2>
-        <p class="sub">空格 暂停 · D +5 分钟 · R 重置 · Esc 提前降落 · F 重设视角。拖动地图平移，滚轮缩放。</p>
+        <p class="sub">拖动地图平移，滚轮 / 双指缩放。空格 暂停 · D +5 分钟 · R 重置 · Esc 提前降落。</p>
       </div>
       <div class="panel" style="margin-top:10px">
         <h2>时间压缩</h2>
-        <p class="sub">真实飞行时间太长，所以计时被压缩。默认 ×<span id="compInfo">30</span>：每 1 分钟专注相当于空中 <span id="compInfo2">30</span> 分钟，1 小时即可覆盖 16 小时的航程。</p>
+        <p class="sub">计时被压缩：默认 ×<span id="compInfo">30</span>，1 分钟专注 ≈ 空中 <span id="compInfo2">30</span> 分钟，1 小时覆盖 16 小时航程。</p>
       </div>
       <div class="panel" style="margin-top:10px">
         <h2>我的航线</h2>
-        <p class="sub">可搜索任意机场，也可用坐标手动添加地点。</p>
+        <p class="sub">可搜索任意机场，或用坐标手动添加地点。</p>
         <div class="loglist" id="customList"></div>
       </div>
     </div>
@@ -1475,10 +1544,10 @@ function passHTML(opts){
       '<div class="klabel">登机口</div><div class="kval">'+state.gate+'</div>'+
       '<div class="klabel">座位</div><div class="kval">'+state.seat+'</div>'+
       '<div class="klabel">任务</div><div class="kval">'+state.subject+'</div>'+
-      '<div class="klabel">行李</div><div class="kval">1 × 深度专注</div>'+
-      '<div class="klabel">专注分钟</div><div class="code-big">'+focusShow+'</div>'+
-      '<div class="klabel">时间压缩 ×'+ratio+'</div>'+
-      '<div class="vseats">臻辉航空</div>'+
+      '<div class="klabel hide-m">行李</div><div class="kval hide-m">1 × 深度专注</div>'+
+      '<div class="klabel hide-m">专注分钟</div><div class="code-big hide-m">'+focusShow+'</div>'+
+      '<div class="klabel hide-m">时间压缩 ×'+ratio+'</div>'+
+      '<div class="vseats hide-m">臻辉航空</div>'+
     '</div>'+
     (arrive? '<div class="stampwrap"><div class="stamp '+(o.status==="DIVERTED"?"diverted":"")+'" id="stamp">'+(o.status==="LANDED"?"已降落":"已改航")+
       '<small>'+(o.status==="LANDED"?"已到达":"已改航")+' '+leg.dest.code+'</small></div></div>' : '')+
@@ -2001,3 +2070,5 @@ window.TOOL = {
 </script>
 </body>
 </html>
+
+
