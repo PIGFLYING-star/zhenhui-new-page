@@ -1346,7 +1346,7 @@ function drawFlight(dt){
   }
   // track mode: map rotates so nose stays up. route/manual: rotate the sprite itself.
   ctx.translate(sp.x,sp.y);
-  if(m.mode==="route"){ ctx.rotate(m.heading*Math.PI/180); }
+  if(m.mode==="route"){ ctx.rotate(m.heading*Math.PI/180); } else if(m.mode==="manual"){ ctx.rotate(m.userRot||0); }
   ctx.scale(size/24, size/24); ctx.translate(-12,-12);
   ctx.fillStyle="#ffffff"; ctx.shadowColor="rgba(0,0,0,.75)"; ctx.shadowBlur=4;
   ctx.fill(PLANE_PATH);
@@ -1823,8 +1823,8 @@ $("zoomIn").addEventListener("click", function(){ flightMap.zoomBy(1.35); });
 $("zoomOut").addEventListener("click", function(){ flightMap.zoomBy(1/1.35); });
 $("zoomFit").addEventListener("click", function(){ fitFlightRoute(); });
 $("followBtn").addEventListener("click", function(){ flightMap.userRot=0; flightMap.setMode("track"); });
-$("homeZoomIn").addEventListener("click", function(){ state.homeUserMoved=true; homeMap.zoomBy(1.5); });
-$("homeZoomOut").addEventListener("click", function(){ state.homeUserMoved=true; homeMap.zoomBy(1/1.5); });
+$("homeZoomIn").addEventListener("click", function(){ state.homeUserMoved=true; homeMap.zoomBy(1.5); markHome(); drawHome(); });
+$("homeZoomOut").addEventListener("click", function(){ state.homeUserMoved=true; homeMap.zoomBy(1/1.5); markHome(); drawHome(); });
 $("homeFit").addEventListener("click", function(){ state.homeUserMoved=false; fitHome(); drawHome(); });
 
 /* ---------- pan / zoom ---------- */
