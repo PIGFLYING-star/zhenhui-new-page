@@ -379,8 +379,12 @@
     .landedgrid .panel{padding:11px 13px}
     .turnaround{padding:9px 11px;gap:8px}
     .turnaround .t{font-size:20px}
-    .logpass{padding:7px 9px;gap:8px}
-    .loglist{max-height:138px;overflow:auto}
+    .logpass{padding:8px 10px;gap:4px 8px;display:flex;flex-wrap:wrap;align-items:center}
+    .logpass::before{display:none}
+    .logpass .lp-route{font-size:12.5px}
+    .logpass .lp-route em{font-size:9.5px}
+    .logpass .lp-min{font-size:12px}
+    .loglist{max-height:none;overflow:visible}
     #screen-landed .panel h2{margin-bottom:2px}
     #screen-landed .panel .sub{margin-bottom:8px;font-size:11px}
     #breakSub{display:none}                    /* 冗余副标题 */
@@ -1016,7 +1020,7 @@ function FlightView(canvas){
   const cam={lon:0,lat:0,zoom:8,rot:0};
   const tgt={lon:0,lat:0,zoom:8,rot:0};
   const bc={canvas:document.createElement("canvas"), lon0:0, lat0:0, s:0, size:0};
-  let W=0,H=0,DPR=1,BD=1,D=0,mode="track",baseRenders=0,lastBaseMs=0,heading=0;
+  let W=0,H=0,DPR=1,BD=1,D=0,mode="track",baseRenders=0,lastBaseMs=0,heading=0,userRot=0;
   function ang(a){ while(a>Math.PI) a-=2*Math.PI; while(a<-Math.PI) a+=2*Math.PI; return a; }
   function wrapLon(a,b){ let d=a-b; while(d>180) d-=360; while(d<-180) d+=360; return d; }
   function baseScale(){ return Math.min(W/360,H/180); }
@@ -1026,7 +1030,7 @@ function FlightView(canvas){
     canvas:canvas, ctx:ctx, cam:cam, tgt:tgt,
     get W(){ return W; }, get H(){ return H; }, get mode(){ return mode; },
     get baseRenders(){ return baseRenders; }, get baseSize(){ return D; },
-    get heading(){ return heading; }, get scalePx(){ return scale(); },
+    get heading(){ return heading; }, get scalePx(){ return scale(); }, get userRot(){ return userRot; }, set userRot(v){ userRot=v; },
     get lastBaseMs(){ return lastBaseMs; },
     size:function(){
       const r=canvas.getBoundingClientRect();
@@ -1075,7 +1079,7 @@ function FlightView(canvas){
       const S=scale();
       const vx=(ahead.lon-plane.lon)*S, vy=-(ahead.lat-plane.lat)*S;
       if(Math.abs(vx)>1e-9 || Math.abs(vy)>1e-9){
-        tgt.rot = -Math.atan2(vx,-vy);
+        tgt.rot = -Math.atan2(vx,-vy) + userRot;
         heading = (Math.atan2(vx,-vy)*DEG+360)%360;
       }
     },
@@ -1342,7 +1346,7 @@ function drawFlight(dt){
   }
   // track mode: map rotates so nose stays up. route/manual: rotate the sprite itself.
   ctx.translate(sp.x,sp.y);
-  if(m.mode!=="track"){ ctx.rotate(m.heading*Math.PI/180); }
+  if(m.mode==="route"){ ctx.rotate(m.heading*Math.PI/180); }
   ctx.scale(size/24, size/24); ctx.translate(-12,-12);
   ctx.fillStyle="#ffffff"; ctx.shadowColor="rgba(0,0,0,.75)"; ctx.shadowBlur=4;
   ctx.fill(PLANE_PATH);
@@ -1818,7 +1822,7 @@ function updateFlight(hard){
 $("zoomIn").addEventListener("click", function(){ flightMap.zoomBy(1.35); });
 $("zoomOut").addEventListener("click", function(){ flightMap.zoomBy(1/1.35); });
 $("zoomFit").addEventListener("click", function(){ fitFlightRoute(); });
-$("followBtn").addEventListener("click", function(){ flightMap.setMode("track"); });
+$("followBtn").addEventListener("click", function(){ flightMap.userRot=0; flightMap.setMode("track"); });
 $("homeZoomIn").addEventListener("click", function(){ state.homeUserMoved=true; homeMap.zoomBy(1.5); });
 $("homeZoomOut").addEventListener("click", function(){ state.homeUserMoved=true; homeMap.zoomBy(1/1.5); });
 $("homeFit").addEventListener("click", function(){ state.homeUserMoved=false; fitHome(); drawHome(); });
@@ -1842,10 +1846,14 @@ function attachPan(el, m){
     else m.zoomBy(e.deltaY<0?1.12:1/1.12);   // stays in FOLLOW: zooming is not leaving
     if(m===homeMap){ state.homeUserMoved=true; markHome(); } }, {passive:false});
   /* touch: pan + pinch zoom. 注意 home 地图拖动后必须 markHome() 触发重绘 */
+  let pinchAngle=0;
   el.addEventListener("touchstart", function(e){
     const t0=e.touches[0];
     if(t0){ lx=t0.clientX; ly=t0.clientY; moved=0; }
-    pinch = e.touches.length===2 ? Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY) : 0;
+    if(e.touches.length===2){
+      pinch = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
+      pinchAngle = Math.atan2(e.touches[1].clientY-e.touches[0].clientY, e.touches[1].clientX-e.touches[0].clientX);
+    } else { pinch=0; }
   }, {passive:true});
   el.addEventListener("touchmove", function(e){
     if(e.cancelable) e.preventDefault();
@@ -1853,6 +1861,13 @@ function attachPan(el, m){
       const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
       if(pinch>0 && d>0) m.zoomBy(d/pinch);
       pinch=d;
+      // 双指旋转：角度差累加到 userRot
+      const ang2 = Math.atan2(e.touches[1].clientY-e.touches[0].clientY, e.touches[1].clientX-e.touches[0].clientX);
+      let da = ang2-pinchAngle;
+      while(da>Math.PI) da-=2*Math.PI; while(da<-Math.PI) da+=2*Math.PI;
+      if(m.setMode && m.mode!=="track"){ m.userRot += da; }
+      else if(m.setMode && m.mode==="track"){ m.setMode("manual"); m.userRot = da; }
+      pinchAngle = ang2;
       if(m===homeMap){ state.homeUserMoved=true; markHome(); }
       return;
     }
