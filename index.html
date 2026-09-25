@@ -333,7 +333,7 @@
     /* 地图按钮：44px 触控目标；底栏高度 JS 动态写 root，这里对两页分别写死安全间距 */
     #screen-home .mapbtns{right:10px;bottom:306px}
     #screen-flight .mapbtns{right:10px;bottom:118px}
-    .mapbtns button{width:44px;height:44px;padding:0;font-size:17px;line-height:1}
+    .mapbtns button{width:44px;height:44px;min-width:44px;min-height:44px;padding:0;font-size:16px;line-height:44px;text-align:center;display:flex;align-items:center;justify-content:center;border-radius:12px}
 
     /* 安全区 */
     header.top{padding-top:max(7px,env(safe-area-inset-top))}
@@ -405,7 +405,7 @@
     .subjectbox{padding:9px 11px}
     .chipbtn{padding:4px 7px;font-size:9.5px}
     /* 小屏落地页：隐藏日志面板（抽屉「飞行日志」中可查看），保证一屏 */
-    #screen-landed .panel:last-child{display:none}
+    #screen-landed .landedgrid > .panel:last-child{display:none}
     #screen-landed .pad{padding:6px 10px}
   }
 </style>
@@ -1340,8 +1340,10 @@ function drawFlight(dt){
     ctx.beginPath(); ctx.arc(sp.x,sp.y,size*0.55+pulse*size*0.75,0,Math.PI*2);
     ctx.strokeStyle="rgba(255,255,255,"+(0.3*(1-pulse)).toFixed(3)+")"; ctx.lineWidth=1.2; ctx.stroke();
   }
-  // nose always points up: the map turns, not the aircraft
-  ctx.translate(sp.x,sp.y); ctx.scale(size/24, size/24); ctx.translate(-12,-12);
+  // track mode: map rotates so nose stays up. route/manual: rotate the sprite itself.
+  ctx.translate(sp.x,sp.y);
+  if(m.mode!=="track"){ ctx.rotate(m.heading*Math.PI/180); }
+  ctx.scale(size/24, size/24); ctx.translate(-12,-12);
   ctx.fillStyle="#ffffff"; ctx.shadowColor="rgba(0,0,0,.75)"; ctx.shadowBlur=4;
   ctx.fill(PLANE_PATH);
   ctx.restore();
@@ -1648,6 +1650,9 @@ function fitHomeIfNeeded(){
 function beginBoarding(){
   commitName();
   if(!state.dest) return;
+  // 移动端：用户手势内解锁 AudioContext 和 SpeechSynthesis
+  try{ const a=audio(); if(a && a.state==="suspended") a.resume(); }catch(e){}
+  try{ if(window.speechSynthesis){ window.speechSynthesis.resume&&window.speechSynthesis.resume(); } }catch(e){}
   const leg=legTo(state.dest);
   state.flightNo="FX"+String(1000+(hash(leg.origin.code+leg.dest.code+String(new Date().getDate()))%8999));
   const h=hash(leg.origin.code+leg.dest.code);
@@ -1708,6 +1713,7 @@ function divert(){
   state.landedStatus="DIVERTED"; state.landedMin=Math.max(0,Math.round(el/60));
   state.landedKm=Math.round(leg.km*p); state.landedSecs=el;
   addLog("DIVERTED", state.landedMin, state.landedKm, el);
+  speakSeq(["女士们先生们，我们将提前降落。","本次 "+spokenCities(state.landedMin)+" "+state.subject.toLowerCase()+" 已记录。"]);
   land(false);
 }
 function land(completed){
@@ -1840,8 +1846,9 @@ function attachPan(el, m){
     const t0=e.touches[0];
     if(t0){ lx=t0.clientX; ly=t0.clientY; moved=0; }
     pinch = e.touches.length===2 ? Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY) : 0;
-  });
+  }, {passive:true});
   el.addEventListener("touchmove", function(e){
+    if(e.cancelable) e.preventDefault();
     if(e.touches.length===2){
       const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
       if(pinch>0 && d>0) m.zoomBy(d/pinch);
@@ -1852,12 +1859,16 @@ function attachPan(el, m){
     const t=e.touches[0]; if(!t) return;
     const dx=t.clientX-lx, dy=t.clientY-ly;
     moved+=Math.abs(dx)+Math.abs(dy);
-    if(moved<6) return;                  // tap or jitter must not move the map
+    if(moved<6){ lx=t.clientX; ly=t.clientY; return; }
     m.pan(dx,dy);
     lx=t.clientX; ly=t.clientY;
     if(m===homeMap){ state.homeUserMoved=true; markHome(); }
+  }, {passive:false});
+  el.addEventListener("touchend", function(e){
+    pinch=0;
+    // 双指变单指时重置单指起点，防止地图瞬移
+    if(e.touches.length===1){ lx=e.touches[0].clientX; ly=e.touches[0].clientY; moved=0; }
   });
-  el.addEventListener("touchend", function(){ pinch=0; });
   /* 拖动结束后抑制随之而来的合成 click（防止拖地图误选机场） */
   el.addEventListener("click", function(e){ if(moved>=6){ e.stopPropagation(); e.preventDefault(); moved=0; } }, true);
 }
@@ -2101,5 +2112,8 @@ window.TOOL = {
 </script>
 </body>
 </html>
+
+
+
 
 
