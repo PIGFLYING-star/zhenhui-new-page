@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>SKYFOCUS — 臻辉航班</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23101A24'/%3E%3Cpath d='M14 42 L50 12 L38 52 L28 38 L14 42 Z' fill='%23E8C77A'/%3E%3C/svg%3E">
 <style>
@@ -924,8 +924,8 @@ function MapView(canvas){
     canvas:canvas, ctx:ctx, view:view,
     get W(){ return W; }, get H(){ return H; }, get ready(){ return ready; },
     get key(){ return key; },
-    pxPerDeg:function(){ return Math.min(W/360,H/180)*view.zoom; },
-    minZoom:function(){ const b=Math.min(W/360,H/180); return Math.max(1,(W/2)/(178*b)); },
+    pxPerDeg:function(){ return Math.max(W/360,H/180)*view.zoom; },
+    minZoom:function(){ const b=Math.max(W/360,H/180); return Math.max(1,(W/2)/(178*b)); },
     px:function(lon){ return W/2 + (lon-view.lon0)*api.pxPerDeg(); },
     py:function(lat){ return H/2 - (lat-view.lat0)*api.pxPerDeg(); },
     invLon:function(x){ return view.lon0 + (x-W/2)/api.pxPerDeg(); },
@@ -935,7 +935,7 @@ function MapView(canvas){
     unproject:function(x,y){ return {lon:api.invLon(x), lat:api.invLat(y)}; },
     size:function(){
       const r=canvas.getBoundingClientRect();
-      DPR=Math.min(2, window.devicePixelRatio||1);
+      DPR=Math.min(3, window.devicePixelRatio||1);
       W=Math.max(200, Math.round(r.width)); H=Math.max(150, Math.round(r.height));
       canvas.width=Math.round(W*DPR); canvas.height=Math.round(H*DPR);
       ctx.setTransform(DPR,0,0,DPR,0,0);
@@ -961,7 +961,7 @@ function MapView(canvas){
       const lonSpan=Math.max(padLon||4, Math.min(350, c-a));
       const latSpan=Math.max(padLat||3, e-d);
       view.lon0=(a+c)/2; view.lat0=(d+e)/2;
-      const b=Math.min(W/360,H/180);
+      const b=Math.max(W/360,H/180);
       view.zoom=Math.max(api.minZoom(), Math.min(60, Math.min(0.76*W/lonSpan, 0.62*H/latSpan)/b));
       ready=false;
     },
@@ -1034,10 +1034,10 @@ function FlightView(canvas){
     get lastBaseMs(){ return lastBaseMs; },
     size:function(){
       const r=canvas.getBoundingClientRect();
-      DPR=Math.min(2, window.devicePixelRatio||1);
+      DPR=Math.min(3, window.devicePixelRatio||1);
       W=Math.max(200,Math.round(r.width)); H=Math.max(150,Math.round(r.height));
       canvas.width=Math.round(W*DPR); canvas.height=Math.round(H*DPR);
-      BD=Math.min(DPR,1.5);
+      BD=DPR;
       // a rotated square of side D covers a W x H viewport at any angle when
       // D/2 >= hypot(W/2,H/2) + drift margin; 1.25x diagonal does that with an
       // 7.5% drift allowance, so a corner can never fall outside the base
@@ -1195,23 +1195,35 @@ function drawHome(){
     m.ring(ringPointsAt(o,R), {color:"rgba(255,179,71,0.55)", width:1.6, dash:[6,7]});
     m.ring(ringPointsAt(o,R*0.5), {color:"rgba(255,179,71,0.16)", width:1, dash:[4,8]});
   }
-  const cand=distanceList().slice(0,400);
+  const cand=distanceList();
   const markers=[];
-  cand.forEach(function(c){
+  for(let i=0;i<cand.length;i++){
+    const c=cand[i];
     const inRange=c.km<=R;
-    if(!inRange && c.km>R*1.9) return;
-    if(!inRange && markers.length>140 && (c.km>R*1.35)) return;
     const p=m.project(m.nearView(c.a.lon), c.a.lat);
-    if(p.x<-40||p.x>m.W+40||p.y<-30||p.y>m.H+30) return;
+    if(p.x<-40||p.x>m.W+40||p.y<-30||p.y>m.H+30) continue;
     markers.push({a:c.a, km:c.km, x:p.x, y:p.y, inRange:inRange});
+  }
+  // batch dots by style so the whole world stays cheap to draw (one path per group)
+  const dotGroups=[
+    {r:3.8, col:"#ffb347", ring:"rgba(5,10,20,.85)", pick:function(mk){ return mk.inRange; }},
+    {r:2.6, col:"rgba(120,140,170,0.7)", ring:"rgba(5,10,20,.85)", pick:function(mk){ return !mk.inRange; }},
+    {r:6.5, col:"#ffffff", ring:"#20160a", pick:function(mk){ return !!(state.dest && state.dest.code===mk.a.code); }}
+  ];
+  dotGroups.forEach(function(g){
+    const path=new Path2D();
+    markers.forEach(function(mk){
+      if(!g.pick(mk)) return;
+      path.moveTo(mk.x+g.r, mk.y);
+      path.arc(mk.x, mk.y, g.r, 0, Math.PI*2);
+    });
+    m.ctx.fillStyle=g.col; m.ctx.fill(path);
+    m.ctx.lineWidth=1.4; m.ctx.strokeStyle=g.ring; m.ctx.stroke(path);
   });
   const labelWant=[];
   markers.forEach(function(mk){
     const sel=state.dest && state.dest.code===mk.a.code;
-    const r=sel? 6.5 : (mk.inRange? 3.8 : 2.6);
-    const col=sel? "#ffffff" : (mk.inRange? "#ffb347" : "rgba(120,140,170,0.7)");
-    m.dot(mk.a.lon, mk.a.lat, r, col, sel? "#20160a" : "rgba(5,10,20,.85)");
-    if(sel || mk.inRange) labelWant.push({code:mk.a.code, x:mk.x, y:mk.y, sel:sel, km:mk.km});
+    if(sel || mk.inRange) labelWant.push({code:mk.a.code, x:mk.x, y:mk.y, sel:!!sel, km:mk.km});
   });
   // labels: nearest first, and never on top of one another (origin label wins)
   const placed=[];
@@ -1392,7 +1404,14 @@ function pickVoice(){
   });
   if(best) voice=best;
 }
-if(window.speechSynthesis){ pickVoice(); window.speechSynthesis.onvoiceschanged=pickVoice; }
+if(window.speechSynthesis){
+  pickVoice();
+  window.speechSynthesis.onvoiceschanged=pickVoice;
+  // iOS Safari 有时不触发 voiceschanged：延时重试，避免一直用默认语音
+  setTimeout(pickVoice, 250); setTimeout(pickVoice, 1200);
+}
+// 持有正在播报的 utterance 引用：移动端 Chrome 对失去引用的 utterance 可能不发声
+const liveUtterances=[];
 function say(text){
   if(!state.voice || !text) return;
   voiceLog.push(text);
@@ -1405,17 +1424,27 @@ function say(text){
     u.lang="zh-CN";
     u.rate=0.95; u.pitch=1.0; u.volume=1;      // measured, conversational, not a sat-nav bark
     if(voice) u.voice=voice;
+    liveUtterances.push(u);
+    const drop=function(){ const i=liveUtterances.indexOf(u); if(i>=0) liveUtterances.splice(i,1); };
+    u.onend=drop; u.onerror=drop;
     window.speechSynthesis.speak(u);
   }catch(e){ cabinChime(); }
 }
 // A PA announcement is a chime, one line, a beat, then the second line - not one
 // run-on sentence. The beat is scaled to the length of the first line.
-function speakSeq(lines){
+function speakSeq(lines, syncFirst){
   if(window.speechSynthesis && window.speechSynthesis.cancel) window.speechSynthesis.cancel();
   lines=lines.filter(Boolean);
   if(!lines.length) return;
   let at = 0;
   if(state.sound){ cabinChime(); at = 520; }
+  // syncFirst：第一条在用户手势调用栈内同步播报 —— 解锁 iOS/Android 语音引擎。
+  // 若全部放进 setTimeout，已脱离手势栈，iOS 会静默丢弃导致无声。
+  if(syncFirst && lines.length){
+    say(lines[0]);
+    lines=lines.slice(1);
+    at = 900;
+  }
   lines.forEach(function(line, i){
     setTimeout(function(){ say(line); }, at);
     at += 700 + line.length*55 + (i<lines.length-1? 500 : 0);
@@ -1527,7 +1556,7 @@ homeMapEl.addEventListener("click", function(e){
   else{
     const ll=homeMap.unproject(x,y);
     let b2=null, bd2=26;
-    distanceList().slice(0,400).forEach(function(c){
+    distanceList().forEach(function(c){
       const p=homeMap.project(homeMap.nearView(c.a.lon), c.a.lat);
       const d=Math.hypot(p.x-x, p.y-y);
       if(d<bd2){ bd2=d; b2=c.a; }
@@ -1681,7 +1710,7 @@ function beginBoarding(){
     "欢迎登机。本次臻辉航空 "+spokenDigits(state.flightNo.replace(/^FX/,""))+" 号航班飞往 "+
       (leg.dest.city||leg.dest.code)+"。今天的任务是 "+spokenCities(state.focusMin)+" "+
       state.subject.toLowerCase()+"。请收起干扰，享受飞行。"
-  ]); });
+  ], true); });
   updateFlight(true);
 }
 function togglePause(){
@@ -2127,8 +2156,5 @@ window.TOOL = {
 </script>
 </body>
 </html>
-
-
-
 
 
